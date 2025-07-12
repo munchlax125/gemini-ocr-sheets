@@ -1,0 +1,7 @@
+Flask==3.0.0
+google-generativeai==0.3.2
+requests==2.31.0
+python-dotenv==1.0.0
+markdown-it-py==3.0.0
+bleach==6.1.0
+Flask-Limiter==3.5.0
