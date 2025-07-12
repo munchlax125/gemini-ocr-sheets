@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF 통합 처리 시스템</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 PDF 통합 처리 시스템</h1>
+        
+        <!-- 진행 상태 표시 -->
+        <div class="progress-indicator">
+            <div class="progress-step" id="progress-step-1">
+                <div class="progress-circle">1</div>
+                <span>폴더 스캔</span>
+            </div>
+            <div class="progress-line"></div>
+            <div class="progress-step" id="progress-step-2">
+                <div class="progress-circle">2</div>
+                <span>마스킹 처리</span>
+            </div>
+            <div class="progress-line"></div>
+            <div class="progress-step" id="progress-step-3">
+                <div class="progress-circle">3</div>
+                <span>OCR 처리</span>
+            </div>
+            <div class="progress-line"></div>
+            <div class="progress-step" id="progress-step-4">
+                <div class="progress-circle">4</div>
+                <span>엑셀 생성</span>
+            </div>
+        </div>
+
+        <div class="workflow-container">
+            <!-- Step 1: 폴더 스캔 -->
+            <div class="step-card active" id="step1">
+                <div class="step-header">
+                    <div class="step-number" id="step1-number">1</div>
+                    <div class="step-title">PDF 폴더 스캔</div>
+                </div>
+                <div class="step-description">
+                    pdfs 폴더에 있는 PDF 파일들을 스캔합니다.
+                    <br><small style="color: #888;">• 파일명: "이름_생년월일.pdf" 형태 권장</small>
+                </div>
+                <div id="folderInfo" class="folder-info">
+                    📁 폴더를 스캔하려면 아래 버튼을 클릭하세요.
+                </div>
+                <button class="btn" id="scanFolderBtn">📁 pdfs 폴더 스캔</button>
+                <div id="scannedFiles" class="file-list" style="display: none;"></div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="scanProgress"></div>
+                </div>
+                <div id="step1Messages" class="status-messages"></div>
+            </div>
+
+            <!-- Step 2: 마스킹 처리 -->
+            <div class="step-card" id="step2">
+                <div class="step-header">
+                    <div class="step-number" id="step2-number">2</div>
+                    <div class="step-title">마스킹 처리</div>
+                </div>
+                <div class="step-description">
+                    PDF 첫 페이지에서 개인정보를 자동으로 마스킹 처리합니다.
+                    <br><small style="color: #888;">• 이름, 생년월일, 사업자번호 영역을 기본 설정으로 마스킹</small>
+                    <br><small style="color: #888;">• 첫 페이지만 추출하여 용량 최적화</small>
+                    <br><small style="color: #888;">• pdfs → masked-pdfs 폴더로 저장</small>
+                </div>
+                <button class="btn" id="startMaskingBtn" disabled>🎭 마스킹 처리 시작</button>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="maskingProgress"></div>
+                </div>
+                <div id="step2Messages" class="status-messages"></div>
+            </div>
+
+            <!-- Step 3: 정보 추출 (OCR) -->
+            <div class="step-card" id="step3">
+                <div class="step-header">
+                    <div class="step-number" id="step3-number">3</div>
+                    <div class="step-title">정보 추출 (OCR)</div>
+                </div>
+                <div class="step-description">
+                    마스킹된 PDF를 Gemini OCR로 분석하여 Google Sheets에 업로드합니다.
+                    <br><small style="color: #888;">• masked-pdfs 폴더의 파일들을 자동 처리</small>
+                </div>
+                <button class="btn btn-secondary" id="startOCRBtn" disabled>🤖 OCR 처리 & Sheets 업로드</button>
+                
+                <!-- OCR 로그 표시 영역 -->
+                <div id="ocrLogContainer" class="log-container" style="display: none;">
+                    <div class="log-header">
+                        <span>📜 OCR 처리 로그</span>
+                        <button id="toggleLogBtn" class="toggle-btn">접기</button>
+                    </div>
+                    <div id="ocrLogContent" class="log-content"></div>
+                </div>
+                
+                <div class="progress-bar">
+                    <div class="progress-fill" id="ocrProgress"></div>
+                </div>
+                <div id="step3Messages" class="status-messages"></div>
+            </div>
+
+            <!-- Step 4: 개인정보 엑셀 생성 -->
+            <div class="step-card" id="step4">
+                <div class="step-header">
+                    <div class="step-number" id="step4-number">4</div>
+                    <div class="step-title">개인정보 엑셀 생성</div>
+                </div>
+                <div class="step-description">
+                    원본 파일명에서 이름과 생년월일을 추출하여 엑셀로 생성합니다.
+                </div>
+                <button class="btn btn-success" id="generateExcelBtn" disabled>📊 개인정보 엑셀 생성</button>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="excelProgress"></div>
+                </div>
+                <div id="step4Messages" class="status-messages"></div>
+            </div>
+        </div>
+
+        <!-- 결과 섹션 -->
+        <div class="results-section" id="resultsSection" style="display: none;">
+            <h2>📋 처리 결과</h2>
+            <div class="results-grid">
+                <div class="result-card">
+                    <h3>🎭 마스킹된 파일</h3>
+                    <div id="maskedFilesList"></div>
+                    <button class="btn btn-secondary" id="downloadMaskedBtn" disabled>📥 마스킹 파일 다운로드</button>
+                </div>
+                
+                <div class="result-card">
+                    <h3>📊 개인정보 매핑</h3>
+                    <div id="personalInfoTable"></div>
+                    <button class="btn btn-secondary" id="downloadExcelBtn" disabled>📥 엑셀 파일 다운로드</button>
+                </div>
+                
+                <div class="result-card">
+                    <h3>🔗 파일 매핑 정보</h3>
+                    <div id="fileMappingInfo"></div>
+                    <button class="btn btn-secondary" id="downloadMappingBtn" disabled>📥 매핑 파일 다운로드</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -7,6 +7,8 @@ from google.oauth2 import service_account
 import google.generativeai as genai
 from dotenv import load_dotenv
 import sys
+import time
+from datetime import datetime
 
 # UTF-8 인코딩 강제 설정
 if sys.platform.startswith('win'):
@@ -128,71 +130,69 @@ def extract_data_with_gemini(file_path: str, prompt: str):
     """
     Google Generative AI SDK를 사용하여 PDF에서 데이터를 추출합니다.
     """
-    print(f"\n[처리 시작] '{os.path.basename(file_path)}' 파일 처리 시작...")
+    print(f"\n🔄 [분석 시작] '{os.path.basename(file_path)}' 파일 분석 중...")
     
     if not os.path.exists(file_path):
-        raise FileNotFoundError(f"오류: PDF 파일을 찾을 수 없습니다. 경로: {file_path}")
+        raise FileNotFoundError(f"❌ 오류: PDF 파일을 찾을 수 없습니다. 경로: {file_path}")
 
     uploaded_file = None
     max_retries = 3
     
     for attempt in range(max_retries):
         try:
-            print(f"[시도 {attempt + 1}/{max_retries}]")
+            if max_retries > 1:
+                print(f"🔄 시도 {attempt + 1}/{max_retries}")
             
-            # 1. File API를 사용해 파일 업로드
-            print("[업로드] File API로 PDF 파일을 업로드합니다...")
+            # 파일 업로드 (로그 숨김)
             uploaded_file = genai.upload_file(path=file_path, display_name=os.path.basename(file_path))
             
-            # 2. 모델 초기화 및 콘텐츠 생성 요청
+            # 모델 초기화 및 콘텐츠 생성 요청
             model = genai.GenerativeModel(model_name="gemini-2.5-flash")
             
-            print("[분석] Gemini에게 데이터 추출을 요청합니다...")
+            print("🧠 Gemini AI로 데이터 추출 중...")
             response = model.generate_content([uploaded_file, prompt])
             
-            print(f"[응답] 응답 받음 (시도 {attempt + 1}/{max_retries})")
-            print(f"[응답] 응답 길이: {len(response.text)} 문자")
+            print(f"📄 응답 수신 완료 (길이: {len(response.text)} 문자)")
             
-            # 3. 안전한 JSON 추출
+            # JSON 추출
             extracted_data = safe_extract_json(response.text)
             
             if extracted_data is None:
-                print(f"[경고] 시도 {attempt + 1}: JSON 추출 실패")
-                print(f"[응답 미리보기] {response.text[:500]}...")
+                print(f"⚠️ 시도 {attempt + 1}: JSON 추출 실패")
                 if attempt < max_retries - 1:
+                    print(f"🔄 재시도합니다...")
                     continue
                 else:
-                    raise ValueError(f"모든 시도에서 JSON 추출 실패. 원본 응답:\n{response.text}")
+                    raise ValueError(f"❌ 모든 시도에서 JSON 추출 실패")
             
-            print(f"[성공] 데이터 추출 완료. {len(extracted_data)}개 항목 발견")
+            print(f"✅ 데이터 추출 성공! {len(extracted_data)}개 항목 발견")
             return extracted_data
             
         except Exception as e:
-            print(f"[오류] 시도 {attempt + 1} 실패: {e}")
+            print(f"❌ 시도 {attempt + 1} 실패: {e}")
             if attempt == max_retries - 1:
                 raise
         finally:
-            # 4. 처리 후 업로드된 파일 삭제
+            # 파일 삭제 (로그 숨김)
             if uploaded_file:
                 try:
-                    print(f"[삭제] 업로드된 파일 '{uploaded_file.display_name}'을 삭제합니다.")
                     genai.delete_file(uploaded_file.name)
                     uploaded_file = None
-                except Exception as e:
-                    print(f"[경고] 파일 삭제 중 오류: {e}")
+                except Exception:
+                    pass  # 삭제 오류는 무시
 
 def validate_and_fix_data(data_list):
     """
     추출된 데이터의 유효성을 검사하고 수정
     """
     if not isinstance(data_list, list):
-        print("[경고] 데이터가 배열이 아닙니다. 배열로 변환합니다.")
+        print("⚠️ 데이터가 배열이 아닙니다. 배열로 변환합니다.")
         return [data_list] if isinstance(data_list, dict) else []
     
     validated_data = []
     for i, item in enumerate(data_list):
         if not isinstance(item, dict):
-            print(f"[경고] 항목 {i+1}이 객체가 아닙니다. 건너뜁니다.")
+            print(f"⚠️ 항목 {i+1}이 객체가 아닙니다. 건너뜁니다.")
             continue
         
         # 모든 필드가 있는지 확인하고 없으면 추가
@@ -202,12 +202,21 @@ def validate_and_fix_data(data_list):
         
         validated_data.append(item)
     
-    print(f"[검증 완료] {len(validated_data)}개 항목 유효")
+    print(f"✅ 데이터 검증 완료. {len(validated_data)}개 항목 유효")
     return validated_data
 
-# --- Main ---
+# --- 🚀 Main ---
 def main():
-    print("=== PDF 일괄 처리 및 스프레드시트 입력을 시작합니다 ===")
+    start_time = time.time()
+    print("=" * 70)
+    print("🚀 PDF 일괄 처리 및 스프레드시트 입력을 시작합니다")
+    print("=" * 70)
+    
+    # 시스템 정보 출력
+    print(f"📅 시작 시간: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"📂 작업 폴더: {PDF_FOLDER_PATH}")
+    print(f"📊 대상 스프레드시트: {SPREADSHEET_NAME}")
+    print("-" * 70)
 
     # --- Google API 인증 (Gemini 및 Sheets) ---
     try:
@@ -216,7 +225,7 @@ def main():
             raise ValueError("GOOGLE_API_KEY 환경변수가 설정되지 않았습니다.")
         
         genai.configure(api_key=API_KEY)
-        print("[성공] Gemini API 초기화 성공!")
+        print("✅ Gemini API 초기화 성공!")
 
         # Google Sheets 인증
         scopes = [
@@ -235,46 +244,58 @@ def main():
             log_worksheet = spreadsheet.add_worksheet(title="오류_로그", rows="100", cols="10")
             log_worksheet.append_row(["파일 이름", "오류 내용", "처리 시간"])
         
-        print("[성공] 구글 스프레드시트 연결 성공!")
+        print("✅ 구글 스프레드시트 연결 성공!")
     except Exception as e:
-        print(f"[오류] 구글 API 연결 실패: {e}")
+        print(f"\n❌ 구글 API 연결 실패: {e}")
         return
 
     # 헤더 설정
     try:
         first_row = worksheet.row_values(1)
         if not first_row:
-            print("[설정] 1행이 비어있어 헤더를 추가합니다...")
+            print("📝 1행이 비어있어 헤더를 추가합니다...")
             headers = ["파일이름", "행번호"] + EXTRACTION_FIELDS
             worksheet.append_row(headers)
         else:
-            print("[확인] 헤더가 이미 존재합니다.")
+            print("📝 헤더가 이미 존재합니다.")
     except Exception as e:
-        print(f"[오류] 헤더 확인 중 오류 발생: {e}")
+        print(f"❌ 헤더 확인 중 오류 발생: {e}")
 
     # PDF 파일 목록 가져오기
     try:
         pdf_files = [f for f in os.listdir(PDF_FOLDER_PATH) if f.lower().endswith('.pdf')]
         if not pdf_files:
-            print(f"[오류] '{PDF_FOLDER_PATH}' 폴더에 PDF 파일이 없습니다.")
+            print(f"❌ '{PDF_FOLDER_PATH}' 폴더에 PDF 파일이 없습니다.")
             return
         
         # 파일명을 숫자 순서로 정렬 (1.pdf, 2.pdf, 3.pdf...)
         pdf_files.sort(key=lambda x: int(x.split('.')[0]) if x.split('.')[0].isdigit() else 999)
         
-        print(f"[확인] 총 {len(pdf_files)}개의 PDF 파일을 처리합니다: {pdf_files}")
+        print(f"\n📂 총 {len(pdf_files)}개의 PDF 파일을 처리합니다: {pdf_files}")
     except FileNotFoundError:
-        print(f"[오류] 폴더를 찾을 수 없습니다: '{PDF_FOLDER_PATH}'")
+        print(f"❌ 폴더를 찾을 수 없습니다: '{PDF_FOLDER_PATH}'")
         return
 
     total_rows_added = 0
     error_count = 0
 
+    # 파일 처리 시작
+    print(f"\n{'='*25} 📄 파일 처리 시작 {'='*25}")
+    
     # 각 PDF 파일 처리
-    for pdf_file in pdf_files:
+    for i, pdf_file in enumerate(pdf_files, 1):
+        file_start_time = time.time()
+        
+        print(f"\n📄 [{i}/{len(pdf_files)}] {pdf_file}")
+        print("-" * 50)
+        
         try:
             full_path = os.path.join(PDF_FOLDER_PATH, pdf_file)
-            print(f"\n[처리 중] '{pdf_file}' 처리 중...")
+            print(f"🔄 '{pdf_file}' 처리 중...")
+            
+            # 파일 크기 정보 추가
+            file_size = os.path.getsize(full_path) / 1024 / 1024  # MB
+            print(f"📏 파일 크기: {file_size:.2f} MB")
             
             # 데이터 추출
             extracted_data_list = extract_data_with_gemini(full_path, GEMINI_PROMPT)
@@ -283,19 +304,18 @@ def main():
             validated_data = validate_and_fix_data(extracted_data_list)
             
             if not validated_data:
-                print(f"[경고] '{pdf_file}'에서 유효한 데이터를 찾지 못했습니다.")
-                import datetime
-                log_worksheet.append_row([pdf_file, "유효한 데이터 없음", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+                print(f"⚠️ '{pdf_file}'에서 유효한 데이터를 찾지 못했습니다.")
+                log_worksheet.append_row([pdf_file, "유효한 데이터 없음", datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
                 continue
             
             # 스프레드시트에 추가할 행들 준비
             rows_to_append = []
-            for i, extracted_data in enumerate(validated_data):
-                # 첫 번째 행에만 파일 이름 표시, 나머지는 빈 문자열
-                file_name_to_log = pdf_file if i == 0 else ""
-                row_number = i + 1
+            for j, extracted_data in enumerate(validated_data):
+                # 모든 행에 파일 이름 표시 (확장자 제거)
+                file_name_without_ext = pdf_file.replace('.pdf', '')  # .pdf 확장자 제거
+                row_number = j + 1
                 
-                data_row = [file_name_to_log, row_number]
+                data_row = [file_name_without_ext, row_number]
                 for field in EXTRACTION_FIELDS:
                     value = extracted_data.get(field, 'N/A')
                     if isinstance(value, str):
@@ -311,29 +331,42 @@ def main():
                 worksheet.append_rows(rows_to_append)
                 total_rows_added += len(rows_to_append)
             
-            print(f"[완료] '{pdf_file}' 처리 완료!")
-            print(f"   [데이터] 추출된 데이터: {len(validated_data)}개 항목")
-            print(f"   [시트] 스프레드시트 추가: {len(rows_to_append)}개 행")
+            # 처리 시간 계산
+            file_end_time = time.time()
+            processing_time = file_end_time - file_start_time
+            
+            print(f"✅ '{pdf_file}' 처리 완료!")
+            print(f"   📊 추출된 데이터: {len(validated_data)}개 항목")
+            print(f"   📝 스프레드시트 추가: {len(rows_to_append)}개 행")
+            print(f"   ⏱️ 처리 시간: {processing_time:.2f}초")
 
         except Exception as e:
-            error_message = f"[오류] '{pdf_file}' 처리 중 오류 발생: {e}"
+            error_message = f"🚨 '{pdf_file}' 처리 중 오류 발생: {e}"
             print(error_message)
             
             # 오류 로그에 기록
-            import datetime
-            log_worksheet.append_row([pdf_file, str(e), datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+            log_worksheet.append_row([pdf_file, str(e), datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
             error_count += 1
             continue
 
-    # 최종 결과 출력
-    print(f"\n=== 모든 작업이 완료되었습니다 ===")
-    print(f"[통계] 총 처리된 파일: {len(pdf_files)}개")
-    print(f"[통계] 성공: {len(pdf_files) - error_count}개")
-    print(f"[통계] 오류: {error_count}개")
-    print(f"[통계] 총 추가된 행: {total_rows_added}개")
+    # 총 처리 시간 계산
+    end_time = time.time()
+    total_processing_time = end_time - start_time
+
+    # 최종 결과 개선
+    print(f"\n{'='*25} ✨ 처리 완료 {'='*25}")
+    print(f"⏱️ 총 처리 시간: {total_processing_time:.2f}초 ({total_processing_time/60:.1f}분)")
+    print(f"📊 총 처리된 파일: {len(pdf_files)}개")
+    print(f"✅ 성공: {len(pdf_files) - error_count}개")
+    print(f"❌ 오류: {error_count}개")
+    print(f"📝 총 추가된 행: {total_rows_added}개")
+    print(f"⚡ 평균 처리 속도: {total_processing_time/(len(pdf_files) - error_count):.2f}초/파일" if (len(pdf_files) - error_count) > 0 else "")
     
     if error_count > 0:
-        print(f"[안내] 오류 상세 내용은 '오류_로그' 시트를 확인하세요.")
+        print(f"⚠️ 오류 상세 내용은 '오류_로그' 시트를 확인하세요.")
+    
+    print("🎉 모든 작업이 완료되었습니다!")
+    print("=" * 70)
 
 if __name__ == '__main__':
     main()
