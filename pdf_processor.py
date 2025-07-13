@@ -20,13 +20,25 @@ class PDFProcessor:
             {'x1': 60, 'y1': 255, 'x2': 170, 'y2': 355},   # 사업자번호
         ]
     
+    def natural_sort_key(self, filename):
+        """파일명을 숫자 순서로 정렬하기 위한 키 함수"""
+        try:
+            # 파일명에서 .pdf 제거하고 숫자로 변환
+            number = int(filename.replace('.pdf', ''))
+            return number
+        except ValueError:
+            # 숫자가 아닌 파일명은 맨 뒤로
+            return 999999
+    
     def scan_pdf_files(self):
         """PDF 파일 스캔"""
         if not os.path.exists(self.source_folder):
             raise Exception(f"'{self.source_folder}' 폴더가 존재하지 않습니다.")
         
         pdf_files = [f for f in os.listdir(self.source_folder) if f.lower().endswith('.pdf')]
-        pdf_files.sort()
+        
+        # 숫자 순서로 정렬
+        pdf_files.sort(key=self.natural_sort_key)
         
         file_info = []
         total_size = 0
@@ -99,7 +111,9 @@ class PDFProcessor:
             
             # PDF 파일 찾기
             pdf_files = [f for f in os.listdir(self.source_folder) if f.lower().endswith('.pdf')]
-            pdf_files.sort()
+            
+            # 숫자 순서로 정렬 (중요!)
+            pdf_files.sort(key=self.natural_sort_key)
             
             if not pdf_files:
                 raise Exception(f"'{self.source_folder}' 폴더에 PDF 파일이 없습니다.")
@@ -192,30 +206,64 @@ class PDFProcessor:
             raise
     
     def extract_personal_info(self):
-        """파일명에서 개인정보 추출"""
+        """파일명에서 개인정보 추출 - 마스킹 매핑 정보를 기반으로 순서 결정"""
         if not os.path.exists(self.source_folder):
             raise Exception(f"'{self.source_folder}' 폴더가 존재하지 않습니다.")
         
-        pdf_files = [f for f in os.listdir(self.source_folder) if f.lower().endswith('.pdf')]
-        pdf_files.sort()
-        
-        personal_info = []
-        
-        for i, filename in enumerate(pdf_files, 1):
-            file_base = filename.replace('.pdf', '')
-            parts = file_base.split('_')
+        # 마스킹 매핑 정보 로드
+        mapping_path = os.path.join(self.target_folder, 'file_mapping.json')
+        if os.path.exists(mapping_path):
+            # 매핑 정보가 있으면 그 순서를 따름 (OCR 처리 순서와 동일)
+            with open(mapping_path, 'r', encoding='utf-8') as f:
+                file_mapping = json.load(f)
             
-            if len(parts) >= 2:
-                name = parts[0]
-                birth_date = parts[1]
+            personal_info = []
+            for mapping in file_mapping:
+                filename = mapping['original_name']
+                order = mapping['number']  # 마스킹된 파일 번호 = OCR 처리 순서
                 
-                if len(birth_date) == 6 or len(birth_date) == 8:
-                    if birth_date.isdigit():
-                        personal_info.append({
-                            'order': i,
-                            'name': name,
-                            'birth_date': birth_date,
-                            'original_filename': filename
-                        })
+                file_base = filename.replace('.pdf', '')
+                parts = file_base.split('_')
+                
+                if len(parts) >= 2:
+                    name = parts[0]
+                    birth_date = parts[1]
+                    
+                    if len(birth_date) == 6 or len(birth_date) == 8:
+                        if birth_date.isdigit():
+                            personal_info.append({
+                                'order': order,  # 마스킹 순서 = OCR 처리 순서
+                                'name': name,
+                                'birth_date': birth_date,
+                                'original_filename': filename
+                            })
+            
+            # 순서대로 정렬
+            personal_info.sort(key=lambda x: x['order'])
+            return personal_info
         
-        return personal_info
+        else:
+            # 매핑 정보가 없으면 기존 방식 (파일명 순서)
+            pdf_files = [f for f in os.listdir(self.source_folder) if f.lower().endswith('.pdf')]
+            pdf_files.sort(key=self.natural_sort_key)
+            
+            personal_info = []
+            
+            for i, filename in enumerate(pdf_files, 1):
+                file_base = filename.replace('.pdf', '')
+                parts = file_base.split('_')
+                
+                if len(parts) >= 2:
+                    name = parts[0]
+                    birth_date = parts[1]
+                    
+                    if len(birth_date) == 6 or len(birth_date) == 8:
+                        if birth_date.isdigit():
+                            personal_info.append({
+                                'order': i,
+                                'name': name,
+                                'birth_date': birth_date,
+                                'original_filename': filename
+                            })
+            
+            return personal_info

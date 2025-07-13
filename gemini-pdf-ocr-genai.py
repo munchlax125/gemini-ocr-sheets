@@ -295,7 +295,16 @@ def main():
             return
         
         # 파일명을 숫자 순서로 정렬 (1.pdf, 2.pdf, 3.pdf...)
-        pdf_files.sort(key=lambda x: int(x.split('.')[0]) if x.split('.')[0].isdigit() else 999)
+        def natural_sort_key(filename):
+            try:
+                # 파일명에서 .pdf 제거하고 숫자로 변환
+                number = int(filename.replace('.pdf', ''))
+                return number
+            except ValueError:
+                # 숫자가 아닌 파일명은 맨 뒤로
+                return 999999
+        
+        pdf_files.sort(key=natural_sort_key)
         
         log_progress(f"📂 총 {len(pdf_files)}개의 PDF 파일을 처리합니다")
         log_progress(f"📋 파일 목록: {pdf_files[:10]}{'...' if len(pdf_files) > 10 else ''}")

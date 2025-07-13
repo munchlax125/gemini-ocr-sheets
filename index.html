@@ -43,7 +43,7 @@
                 </div>
                 <div class="step-description">
                     pdfs 폴더에 있는 PDF 파일들을 스캔합니다.
-                    <br><small style="color: #888;">• 파일명: "성명_생년월일.pdf" 형태 권장</small>
+                    <br><small style="color: #888;">• 파일명: "이름_생년월일.pdf" 형태 권장</small>
                 </div>
                 <div id="folderInfo" class="folder-info">
                     📁 폴더를 스캔하려면 아래 버튼을 클릭하세요.
@@ -64,7 +64,7 @@
                 </div>
                 <div class="step-description">
                     PDF 첫 페이지에서 개인정보를 자동으로 마스킹 처리합니다.
-                    <br><small style="color: #888;">• 성명, 생년월일, 사업자번호 영역을 기본 설정으로 마스킹</small>
+                    <br><small style="color: #888;">• 이름, 생년월일, 사업자번호 영역을 기본 설정으로 마스킹</small>
                     <br><small style="color: #888;">• 첫 페이지만 추출하여 용량 최적화</small>
                     <br><small style="color: #888;">• pdfs → masked-pdfs 폴더로 저장</small>
                 </div>
@@ -85,9 +85,22 @@
                     마스킹된 PDF를 Gemini OCR로 분석하여 Google Sheets에 업로드합니다.
                     <br><small style="color: #888;">• masked-pdfs 폴더의 파일들을 자동 처리</small>
                 </div>
+                
+                <!-- 현재 처리 중인 파일 표시 -->
+                <div id="currentProcessingFile" class="current-file-indicator" style="display: none;">
+                    <div class="file-icon">📄</div>
+                    <div class="file-info">
+                        <div class="file-status">현재 처리 중</div>
+                        <div class="file-name" id="currentFileName">-</div>
+                        <div class="file-progress" id="currentFileProgress">대기 중...</div>
+                    </div>
+                    <div class="processing-spinner"></div>
+                </div>
+                
                 <button class="btn btn-secondary" id="startOCRBtn" disabled>🤖 OCR 처리 & Sheets 업로드</button>
                 
-                <!-- OCR 로그 표시 영역 -->
+                <!-- OCR 로그 표시 영역 - 기본적으로 숨김 -->
+                <!-- 
                 <div id="ocrLogContainer" class="log-container" style="display: none;">
                     <div class="log-header">
                         <span>📜 OCR 처리 로그</span>
@@ -95,6 +108,7 @@
                     </div>
                     <div id="ocrLogContent" class="log-content"></div>
                 </div>
+                -->
                 
                 <div class="progress-bar">
                     <div class="progress-fill" id="ocrProgress"></div>
@@ -112,6 +126,10 @@
                     원본 파일명에서 성명과 생년월일을 추출하여 엑셀로 생성합니다.
                 </div>
                 <button class="btn btn-success" id="generateExcelBtn" disabled>📊 개인정보 엑셀 생성</button>
+                
+                <!-- 엑셀 생성 완료 후 다운로드 버튼 -->
+                <button class="btn btn-primary" id="downloadExcelDirectBtn" style="display: none; margin-top: 10px;">📥 엑셀 파일 다운로드</button>
+                
                 <div class="progress-bar">
                     <div class="progress-fill" id="excelProgress"></div>
                 </div>
@@ -124,26 +142,141 @@
             <h2>📋 처리 결과</h2>
             <div class="results-grid">
                 <div class="result-card">
+                    <h3>📥 파일 다운로드</h3>
+                    <div class="download-buttons">
+                        <button class="btn btn-secondary" id="downloadMaskedBtn" disabled>📥 마스킹 파일 다운로드</button>
+                        <button class="btn btn-secondary" id="downloadExcelBtn" disabled>📥 엑셀 파일 다운로드</button>
+                        <button class="btn btn-secondary" id="downloadMappingBtn" disabled>📥 매핑 파일 다운로드</button>
+                    </div>
+                </div>
+                
+                <div class="result-card">
                     <h3>🎭 마스킹된 파일</h3>
                     <div id="maskedFilesList"></div>
-                    <button class="btn btn-secondary" id="downloadMaskedBtn" disabled>📥 마스킹 파일 다운로드</button>
                 </div>
                 
                 <div class="result-card">
                     <h3>📊 개인정보 매핑</h3>
                     <div id="personalInfoTable"></div>
-                    <button class="btn btn-secondary" id="downloadExcelBtn" disabled>📥 엑셀 파일 다운로드</button>
                 </div>
                 
                 <div class="result-card">
                     <h3>🔗 파일 매핑 정보</h3>
                     <div id="fileMappingInfo"></div>
-                    <button class="btn btn-secondary" id="downloadMappingBtn" disabled>📥 매핑 파일 다운로드</button>
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- 스크립트 로드 - UI 컨트롤러를 먼저 로드한 후 메인 앱 로드 -->
+    <script src="ui-controllers.js"></script>
     <script src="app.js"></script>
+    
+    <style>
+        /* 현재 처리 중인 파일 표시 스타일 */
+        .current-file-indicator {
+            display: flex;
+            align-items: center;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin: 15px 0;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            animation: pulse-glow 2s infinite;
+        }
+
+        .file-icon {
+            font-size: 2em;
+            margin-right: 15px;
+            animation: bounce 1s infinite;
+        }
+
+        .file-info {
+            flex: 1;
+        }
+
+        .file-status {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-bottom: 2px;
+        }
+
+        .file-name {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 2px;
+        }
+
+        .file-progress {
+            font-size: 0.85em;
+            opacity: 0.8;
+        }
+
+        .processing-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { 
+                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+                transform: scale(1);
+            }
+            50% { 
+                box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+                transform: scale(1.01);
+            }
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-5px); }
+            60% { transform: translateY(-3px); }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 다운로드 버튼 그룹 스타일 */
+        .download-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .download-buttons .btn {
+            margin: 0;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #2196f3, #21cbf3);
+        }
+
+        /* 완료 상태 스타일 */
+        .current-file-indicator.completed {
+            background: linear-gradient(135deg, #4caf50, #66bb6a);
+            animation: none;
+        }
+
+        .current-file-indicator.completed .processing-spinner {
+            display: none;
+        }
+
+        .current-file-indicator.completed .file-icon {
+            animation: none;
+        }
+
+        .current-file-indicator.completed .file-icon::after {
+            content: ' ✓';
+            color: #fff;
+        }
+    </style>
 </body>
 </html>

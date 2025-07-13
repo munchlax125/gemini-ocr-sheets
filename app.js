@@ -1,3 +1,4 @@
+// app.js - 메인 애플리케이션 로직
 // 전역 변수
 let scannedFiles = [];
 let maskedFiles = [];
@@ -14,158 +15,6 @@ const startMaskingBtn = document.getElementById('startMaskingBtn');
 const startOCRBtn = document.getElementById('startOCRBtn');
 const generateExcelBtn = document.getElementById('generateExcelBtn');
 const resultsSection = document.getElementById('resultsSection');
-
-// UI 컨트롤러
-class UIController {
-    static activateStep(stepNumber) {
-        // 모든 스텝 비활성화
-        for (let i = 1; i <= 4; i++) {
-            const stepCard = document.getElementById(`step${i}`);
-            const progressStep = document.getElementById(`progress-step-${i}`);
-            
-            stepCard.classList.remove('active');
-            progressStep.classList.remove('active');
-        }
-        
-        // 현재 스텝 활성화
-        const currentStep = document.getElementById(`step${stepNumber}`);
-        const currentProgress = document.getElementById(`progress-step-${stepNumber}`);
-        
-        currentStep.classList.add('active');
-        currentProgress.classList.add('active');
-        
-        // 스크롤을 현재 스텝으로 이동
-        currentStep.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-    
-    static completeStep(stepNumber) {
-        const stepCard = document.getElementById(`step${stepNumber}`);
-        const stepNumberEl = document.getElementById(`step${stepNumber}-number`);
-        const progressStep = document.getElementById(`progress-step-${stepNumber}`);
-        
-        stepCard.classList.add('completed');
-        stepCard.classList.remove('active');
-        stepNumberEl.classList.add('completed');
-        stepNumberEl.innerHTML = '✓';
-        progressStep.classList.add('completed');
-        progressStep.classList.remove('active');
-        
-        // 다음 스텝 활성화
-        if (stepNumber < 4) {
-            setTimeout(() => {
-                this.activateStep(stepNumber + 1);
-            }, 500);
-        }
-    }
-    
-    static updateProgress(elementId, percentage) {
-        const progressBar = document.getElementById(elementId);
-        progressBar.style.width = `${percentage}%`;
-    }
-    
-    static showStepMessage(stepNumber, message, type) {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `status-message status-${type}`;
-        messageDiv.textContent = message;
-        
-        const messagesContainer = document.getElementById(`step${stepNumber}Messages`);
-        messagesContainer.appendChild(messageDiv);
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        
-        setTimeout(() => {
-            if (messageDiv.parentNode) {
-                messageDiv.remove();
-            }
-        }, 5000);
-    }
-}
-
-// OCR 로그 컨트롤러
-class OCRLogController {
-    static show() {
-        const logContainer = document.getElementById('ocrLogContainer');
-        logContainer.style.display = 'block';
-        
-        // 토글 버튼 이벤트
-        const toggleBtn = document.getElementById('toggleLogBtn');
-        const logContent = document.getElementById('ocrLogContent');
-        
-        toggleBtn.onclick = () => {
-            if (logContent.style.display === 'none') {
-                logContent.style.display = 'block';
-                toggleBtn.textContent = '접기';
-            } else {
-                logContent.style.display = 'none';
-                toggleBtn.textContent = '펼치기';
-            }
-        };
-    }
-    
-    static hide() {
-        const logContainer = document.getElementById('ocrLogContainer');
-        logContainer.style.display = 'none';
-    }
-    
-    static appendLog(message) {
-        const logContent = document.getElementById('ocrLogContent');
-        
-        // 타임스탬프가 없는 메시지에만 추가
-        let formattedMessage = message;
-        if (!message.includes('[') || !message.includes(']')) {
-            const timestamp = new Date().toLocaleTimeString();
-            formattedMessage = `[${timestamp}] ${message}`;
-        }
-        
-        // 기존 내용에 새 줄 추가
-        if (logContent.textContent) {
-            logContent.textContent += '\n' + formattedMessage;
-        } else {
-            logContent.textContent = formattedMessage;
-        }
-        
-        // 자동 스크롤
-        logContent.scrollTop = logContent.scrollHeight;
-        
-        // 로그가 너무 길어지면 상위 줄 제거 (최대 500줄)
-        const lines = logContent.textContent.split('\n');
-        if (lines.length > 500) {
-            logContent.textContent = lines.slice(-500).join('\n');
-        }
-    }
-    
-    static appendNewLog(message) {
-        // 실시간 스트리밍용 - 새로운 로그만 추가
-        const logContent = document.getElementById('ocrLogContent');
-        
-        // 기존 내용에 새 줄 추가
-        if (logContent.textContent) {
-            logContent.textContent += '\n' + message;
-        } else {
-            logContent.textContent = message;
-        }
-        
-        // 자동 스크롤
-        logContent.scrollTop = logContent.scrollHeight;
-        
-        // 로그가 너무 길어지면 상위 줄 제거 (최대 500줄)
-        const lines = logContent.textContent.split('\n');
-        if (lines.length > 500) {
-            logContent.textContent = lines.slice(-500).join('\n');
-        }
-    }
-    
-    static clearLog() {
-        const logContent = document.getElementById('ocrLogContent');
-        logContent.textContent = '';
-        lastLogUpdate = null; // 로그 업데이트 시간 초기화
-    }
-    
-    static setLogContent(content) {
-        const logContent = document.getElementById('ocrLogContent');
-        logContent.textContent = content;
-        logContent.scrollTop = logContent.scrollHeight;
-    }
-}
 
 // API 호출 클래스
 class APIClient {
@@ -293,26 +142,22 @@ async function handleMasking() {
 
 async function handleOCR() {
     startOCRBtn.disabled = true;
-    UIController.showStepMessage(3, 'Gemini OCR 스크립트를 실행합니다...', 'info');
     
-    // OCR 로그 표시
-    OCRLogController.show();
-    OCRLogController.clearLog();
-    OCRLogController.appendLog('OCR 처리를 시작합니다...');
+    // 파란색 메시지도 최소화
+    // UIController.showStepMessage(3, 'Gemini OCR 스크립트를 실행합니다...', 'info');
 
     try {
         const result = await APIClient.runOCR();
         
         if (result.success) {
             ocrJobId = result.job_id;
-            UIController.showStepMessage(3, result.message, 'success');
-            OCRLogController.appendLog(`작업 ID: ${result.job_id}`);
             
-            // OCR 작업에 대해서는 실시간 로그 폴링과 상태 폴링을 분리
+            // OCR 작업에 대해서는 실시간 상태 폴링 (로그 없이)
             pollOCRJobWithLogs(result.job_id, () => {
                 UIController.completeStep(3);
-                UIController.showStepMessage(3, 'OCR 처리가 완료되었습니다!', 'success');
-                OCRLogController.appendLog('OCR 처리가 성공적으로 완료되었습니다.');
+                UIController.hideCurrentFile(); // 현재 파일 표시 숨김
+                // 완료 메시지도 최소화
+                // UIController.showStepMessage(3, 'OCR 처리가 완료되었습니다!', 'success');
             });
             
         } else {
@@ -321,7 +166,7 @@ async function handleOCR() {
         
     } catch (error) {
         UIController.showStepMessage(3, `OCR 처리 중 오류: ${error.message}`, 'error');
-        OCRLogController.appendLog(`오류: ${error.message}`);
+        UIController.hideCurrentFile();
         startOCRBtn.disabled = false;
     }
 }
@@ -345,6 +190,11 @@ async function handleExcelGeneration() {
             if (personalInfoData.length > 0) {
                 UIController.completeStep(4);
                 displayResults();
+                
+                // 다이렉트 다운로드 버튼 표시
+                const downloadDirectBtn = document.getElementById('downloadExcelDirectBtn');
+                downloadDirectBtn.style.display = 'block';
+                
                 UIController.showStepMessage(4, `${personalInfoData.length}개 항목의 개인정보 엑셀이 생성되었습니다!`, 'success');
             } else {
                 UIController.showStepMessage(4, '올바른 형식의 파일이 없습니다. 파일명이 "이름_생년월일.pdf" 형태인지 확인해주세요.', 'error');
@@ -360,72 +210,90 @@ async function handleExcelGeneration() {
     }
 }
 
-// OCR 작업 전용 폴링 함수 (실시간 로그 포함)
+// OCR 작업 전용 폴링 함수 (단순화 + 로그 문제 해결)
 async function pollOCRJobWithLogs(jobId, onComplete) {
     let lastKnownLogLength = 0;
+    let pollInterval = 2000; // 기본 2초로 늘림
     
-    const pollInterval = setInterval(async () => {
+    const poll = async () => {
         try {
             const status = await APIClient.getJobStatus(jobId);
-            if (!status) return;
+            if (!status) {
+                console.log('❌ 상태 정보 없음');
+                setTimeout(poll, pollInterval);
+                return;
+            }
+            
+            console.log(`📊 진행률: ${status.progress}%, 상태: ${status.status}`);
             
             // 진행률 업데이트
             UIController.updateProgress('ocrProgress', status.progress);
             
-            // 상태 메시지 업데이트 (중요한 메시지만)
-            if (status.message && (
-                status.message.includes('완료') || 
-                status.message.includes('시작') || 
-                status.message.includes('연결') ||
-                status.message.includes('처리 중') ||
-                status.message.includes('오류')
-            )) {
-                UIController.showStepMessage(3, status.message, 'info');
-            }
-            
-            // 로그 업데이트 (새로운 로그만)
+            // 로그에서 현재 파일명만 간단하게 추출
             if (status.log_output) {
                 const logLines = status.log_output.split('\n');
-                const newLogLines = logLines.slice(lastKnownLogLength);
                 
-                if (newLogLines.length > 0) {
-                    newLogLines.forEach(line => {
-                        if (line.trim()) {
-                            OCRLogController.appendNewLog(line);
+                // 전체 로그에서 가장 최근 파일명 찾기
+                for (let i = logLines.length - 1; i >= 0; i--) {
+                    const line = logLines[i];
+                    if (line.trim()) {
+                        const currentFile = extractFileName(line);
+                        if (currentFile) {
+                            UIController.showCurrentFile(currentFile, '처리 중...');
+                            break;
                         }
-                    });
-                    lastKnownLogLength = logLines.length;
+                    }
                 }
+                
+                lastKnownLogLength = logLines.length;
             }
             
             if (status.status === 'completed') {
-                clearInterval(pollInterval);
-                
-                if (status.result && status.result.output) {
-                    // 최종 출력이 있으면 추가
-                    const finalLines = status.result.output.split('\n');
-                    const remainingLines = finalLines.slice(lastKnownLogLength);
-                    remainingLines.forEach(line => {
-                        if (line.trim()) {
-                            OCRLogController.appendNewLog(line);
-                        }
-                    });
-                }
-                
                 UIController.updateProgress('ocrProgress', 100);
+                UIController.hideCurrentFile();
                 onComplete();
+                return;
                 
             } else if (status.status === 'failed') {
-                clearInterval(pollInterval);
                 UIController.showStepMessage(3, `작업 실패: ${status.error}`, 'error');
-                OCRLogController.appendLog(`작업 실패: ${status.error}`);
+                UIController.hideCurrentFile();
                 startOCRBtn.disabled = false;
+                return;
             }
             
+            // 다음 폴링 예약
+            setTimeout(poll, pollInterval);
+            
         } catch (error) {
-            console.error('OCR 상태 폴링 오류:', error);
+            console.error('❌ OCR 상태 폴링 오류:', error);
+            setTimeout(poll, pollInterval);
         }
-    }, 2000); // 2초마다 상태 확인
+    };
+    
+    // 첫 번째 폴링 시작
+    poll();
+}
+
+// 로그에서 파일명만 간단하게 추출하는 함수
+function extractFileName(logLine) {
+    // 다양한 패턴으로 파일명 추출 시도
+    const patterns = [
+        /(\d+\.pdf)/g,                    // 3.pdf
+        /'(.+\.pdf)'/g,                   // '3.pdf'
+        /===== (.+?) /g,                  // ===== 3.pdf 처리...
+        /\[.+?\] (.+\.pdf)/g              // [3/5] 3.pdf
+    ];
+    
+    for (const pattern of patterns) {
+        const matches = [...logLine.matchAll(pattern)];
+        if (matches.length > 0) {
+            const fileName = matches[matches.length - 1][1]; // 마지막 매치
+            console.log(`📄 파일명 추출: ${fileName} from: ${logLine}`);
+            return fileName;
+        }
+    }
+    
+    return null;
 }
 
 // 일반 작업 상태 폴링 (마스킹용)
@@ -471,163 +339,6 @@ async function pollJobStatus(jobId, stepNumber, onComplete) {
     }, 2000);
 }
 
-// 스캔된 파일 표시
-function displayScannedFiles(result) {
-    const folderInfo = document.getElementById('folderInfo');
-    const filesList = document.getElementById('scannedFiles');
-    
-    // 폴더 정보 업데이트
-    folderInfo.innerHTML = `
-        📁 <strong>${result.folder}</strong><br>
-        📄 파일 수: ${result.count}개<br>
-        💾 총 크기: ${(result.total_size / 1024 / 1024).toFixed(2)} MB
-    `;
-    folderInfo.className = result.count > 0 ? 'folder-info' : 'folder-info empty';
-
-    // 파일 목록 표시
-    if (result.count > 0) {
-        filesList.innerHTML = '';
-        filesList.style.display = 'block';
-
-        result.files.forEach((file, index) => {
-            const fileItem = document.createElement('div');
-            fileItem.className = 'file-item';
-            fileItem.innerHTML = `
-                <span>${index + 1}. ${file.filename}</span>
-                <span>${(file.size / 1024 / 1024).toFixed(2)} MB</span>
-            `;
-            filesList.appendChild(fileItem);
-        });
-    }
-}
-
-function displayResults() {
-    resultsSection.style.display = 'block';
-    
-    // 마스킹된 파일 목록
-    const maskedList = document.getElementById('maskedFilesList');
-    if (maskedFiles.length > 0) {
-        maskedList.innerHTML = maskedFiles.map((file, index) => 
-            `<div class="file-item">${file.masked_name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</div>`
-        ).join('');
-    } else {
-        maskedList.innerHTML = '<div class="file-item">마스킹된 파일 정보를 불러오는 중...</div>';
-    }
-    
-    // 개인정보 테이블
-    const personalTable = document.getElementById('personalInfoTable');
-    personalTable.innerHTML = `
-        <table class="preview-table">
-            <thead>
-                <tr>
-                    <th>순서</th>
-                    <th>이름</th>
-                    <th>생년월일</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${personalInfoData.map(item => `
-                    <tr>
-                        <td>${item.order}</td>
-                        <td>${item.name}</td>
-                        <td>${item.birth_date}</td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    `;
-    
-    // 파일 매핑 정보
-    const mappingInfo = document.getElementById('fileMappingInfo');
-    if (fileMappingData.length > 0) {
-        mappingInfo.innerHTML = fileMappingData.map(item => 
-            `<div class="file-item">${item.masked_name} ← ${item.original_name}</div>`
-        ).join('');
-    } else {
-        mappingInfo.innerHTML = '<div class="file-item">매핑 정보를 불러오는 중...</div>';
-    }
-    
-    document.getElementById('downloadMaskedBtn').disabled = false;
-    document.getElementById('downloadExcelBtn').disabled = false;
-    document.getElementById('downloadMappingBtn').disabled = false;
-}
-
-// 다운로드 함수들
-async function downloadMaskedFiles() {
-    try {
-        UIController.showStepMessage(2, '마스킹된 파일을 다운로드하는 중...', 'info');
-        
-        const response = await fetch(`${API_BASE_URL}/download-masked`);
-        
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `다운로드 실패: ${response.status}`);
-        }
-
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `masked_pdfs_${new Date().toISOString().split('T')[0]}.zip`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        
-        UIController.showStepMessage(2, '마스킹된 파일이 다운로드되었습니다.', 'success');
-        
-    } catch (error) {
-        UIController.showStepMessage(2, `다운로드 중 오류: ${error.message}`, 'error');
-    }
-}
-
-function downloadExcel() {
-    if (personalInfoData.length === 0) return;
-    
-    const excelData = personalInfoData.map(item => ({
-        '순서': item.order,
-        '이름': item.name,
-        '생년월일': item.birth_date
-    }));
-    
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(excelData);
-    
-    const colWidths = [
-        { wch: 10 },
-        { wch: 20 },
-        { wch: 15 }
-    ];
-    ws['!cols'] = colWidths;
-    
-    XLSX.utils.book_append_sheet(wb, ws, '파일목록');
-    
-    const fileName = `파일목록_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(wb, fileName);
-    
-    UIController.showStepMessage(4, '엑셀 파일이 다운로드되었습니다.', 'success');
-}
-
-function downloadMapping() {
-    if (fileMappingData.length === 0) {
-        UIController.showStepMessage(2, '매핑 정보가 없습니다.', 'error');
-        return;
-    }
-
-    const mappingText = "번호 → 원본파일명\n" + "=".repeat(30) + "\n" +
-        fileMappingData.map(item => `${item.masked_name} → ${item.original_name}`).join('\n');
-    
-    const blob = new Blob([mappingText], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = '파일매핑.txt';
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    UIController.showStepMessage(2, '매핑 파일이 다운로드되었습니다.', 'success');
-}
-
 // 서버 연결 확인
 async function checkServerConnection() {
     try {
@@ -654,10 +365,13 @@ function initializeEventListeners() {
     startOCRBtn.addEventListener('click', handleOCR);
     generateExcelBtn.addEventListener('click', handleExcelGeneration);
 
-    // 다운로드 버튼
+    // 다운로드 버튼들
     document.getElementById('downloadMaskedBtn').addEventListener('click', downloadMaskedFiles);
     document.getElementById('downloadExcelBtn').addEventListener('click', downloadExcel);
     document.getElementById('downloadMappingBtn').addEventListener('click', downloadMapping);
+    
+    // Step 4 바로 아래 엑셀 다운로드 버튼
+    document.getElementById('downloadExcelDirectBtn').addEventListener('click', downloadExcel);
 }
 
 // 초기화
