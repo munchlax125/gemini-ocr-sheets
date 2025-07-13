@@ -459,3 +459,104 @@ h1 {
         grid-template-columns: 1fr;
     }
 }
+/* styles.css 파일 끝에 추가할 CSS */
+
+/* 나머지 파일 표시 스타일 */
+.remaining-items {
+    padding: 8px 12px;
+    background: #f0f8ff;
+    border: 1px dashed #b3d9f7;
+    border-radius: 6px;
+    margin: 8px 0;
+    text-align: center;
+    font-style: italic;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.remaining-files {
+    background: #f8f9fa !important;
+    border-left: 3px solid #6c757d;
+    font-style: italic;
+    color: #6c757d;
+}
+
+.remaining-row td {
+    background: #f8f9fa !important;
+    font-weight: 500;
+    border-top: 2px solid #dee2e6;
+}
+
+.no-items {
+    padding: 20px;
+    text-align: center;
+    color: #999;
+    font-style: italic;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px dashed #ddd;
+}
+
+/* 파일 아이템 카운터 개선 */
+.file-item {
+    position: relative;
+    transition: background-color 0.2s ease;
+}
+
+.file-item:hover {
+    background: #f0fbff;
+}
+
+/* 요약 정보 스타일 */
+.summary-info {
+    background: #e3f2fd;
+    border: 1px solid #b3d9f7;
+    border-radius: 8px;
+    padding: 12px;
+    margin: 10px 0;
+    font-size: 0.9em;
+    color: #1565c0;
+}
+
+.summary-info strong {
+    color: #0d47a1;
+}
+
+/* 테이블 스타일 개선 */
+.preview-table {
+    max-height: 500px;
+    overflow-y: auto;
+    display: block;
+}
+
+.preview-table thead,
+.preview-table tbody {
+    display: table;
+    width: 100%;
+    table-layout: fixed;
+}
+
+.preview-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+/* 스크롤바 스타일링 */
+.preview-table::-webkit-scrollbar {
+    width: 8px;
+}
+
+.preview-table::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.preview-table::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.preview-table::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}

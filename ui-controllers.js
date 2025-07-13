@@ -1,4 +1,4 @@
-// ui-controllers.js - UI 컨트롤러 및 유틸리티 함수들
+// ui-controllers.js - UI 컨트롤러 및 유틸리티 함수들 (개선된 버전)
 
 // UI 컨트롤러
 class UIController {
@@ -148,6 +148,24 @@ class OCRLogController {
     }
 }
 
+// 리스트 표시 유틸리티 함수
+function createSummaryList(items, maxShow = 20, itemRenderer) {
+    if (!items || items.length === 0) {
+        return '<div class="no-items">항목이 없습니다.</div>';
+    }
+    
+    const showItems = items.slice(0, maxShow);
+    const remainingCount = items.length - maxShow;
+    
+    let html = showItems.map(itemRenderer).join('');
+    
+    if (remainingCount > 0) {
+        html += `<div class="remaining-items">그외 ${remainingCount}개 파일...</div>`;
+    }
+    
+    return html;
+}
+
 // 데이터 표시 함수들
 function displayScannedFiles(result) {
     const folderInfo = document.getElementById('folderInfo');
@@ -161,12 +179,16 @@ function displayScannedFiles(result) {
     `;
     folderInfo.className = result.count > 0 ? 'folder-info' : 'folder-info empty';
 
-    // 파일 목록 표시
+    // 파일 목록 표시 (최대 20개)
     if (result.count > 0) {
         filesList.innerHTML = '';
         filesList.style.display = 'block';
 
-        result.files.forEach((file, index) => {
+        const maxShow = 20;
+        const showFiles = result.files.slice(0, maxShow);
+        const remainingCount = result.count - maxShow;
+
+        showFiles.forEach((file, index) => {
             const fileItem = document.createElement('div');
             fileItem.className = 'file-item';
             fileItem.innerHTML = `
@@ -175,6 +197,13 @@ function displayScannedFiles(result) {
             `;
             filesList.appendChild(fileItem);
         });
+
+        if (remainingCount > 0) {
+            const remainingItem = document.createElement('div');
+            remainingItem.className = 'file-item remaining-files';
+            remainingItem.innerHTML = `<span>그외 ${remainingCount}개 파일...</span>`;
+            filesList.appendChild(remainingItem);
+        }
     }
 }
 
@@ -182,18 +211,24 @@ function displayResults() {
     const resultsSection = document.getElementById('resultsSection');
     resultsSection.style.display = 'block';
     
-    // 마스킹된 파일 목록
+    // 마스킹된 파일 목록 (최대 20개)
     const maskedList = document.getElementById('maskedFilesList');
     if (maskedFiles.length > 0) {
-        maskedList.innerHTML = maskedFiles.map((file, index) => 
-            `<div class="file-item">${file.masked_name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</div>`
-        ).join('');
+        maskedList.innerHTML = createSummaryList(
+            maskedFiles, 
+            20,
+            (file, index) => `<div class="file-item">${index + 1}. ${file.masked_name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</div>`
+        );
     } else {
         maskedList.innerHTML = '<div class="file-item">마스킹된 파일 정보를 불러오는 중...</div>';
     }
     
-    // 개인정보 테이블
+    // 개인정보 테이블 (최대 20개)
     const personalTable = document.getElementById('personalInfoTable');
+    const maxPersonalShow = 20;
+    const showPersonalData = personalInfoData.slice(0, maxPersonalShow);
+    const remainingPersonalCount = personalInfoData.length - maxPersonalShow;
+    
     personalTable.innerHTML = `
         <table class="preview-table">
             <thead>
@@ -204,23 +239,32 @@ function displayResults() {
                 </tr>
             </thead>
             <tbody>
-                ${personalInfoData.map(item => `
+                ${showPersonalData.map(item => `
                     <tr>
                         <td>${item.order}</td>
                         <td>${item.name}</td>
                         <td>${item.birth_date}</td>
                     </tr>
                 `).join('')}
+                ${remainingPersonalCount > 0 ? `
+                    <tr class="remaining-row">
+                        <td colspan="3" style="text-align: center; font-style: italic; color: #666;">
+                            그외 ${remainingPersonalCount}개 항목...
+                        </td>
+                    </tr>
+                ` : ''}
             </tbody>
         </table>
     `;
     
-    // 파일 매핑 정보
+    // 파일 매핑 정보 (최대 20개)
     const mappingInfo = document.getElementById('fileMappingInfo');
     if (fileMappingData.length > 0) {
-        mappingInfo.innerHTML = fileMappingData.map(item => 
-            `<div class="file-item">${item.masked_name} ← ${item.original_name}</div>`
-        ).join('');
+        mappingInfo.innerHTML = createSummaryList(
+            fileMappingData,
+            20,
+            (item, index) => `<div class="file-item">${index + 1}. ${item.masked_name} ← ${item.original_name}</div>`
+        );
     } else {
         mappingInfo.innerHTML = '<div class="file-item">매핑 정보를 불러오는 중...</div>';
     }
