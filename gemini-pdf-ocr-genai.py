@@ -90,7 +90,8 @@ currency_fields = [
 def log_progress(message, flush=True):
     """진행상황을 실시간으로 출력"""
     timestamp = datetime.now().strftime('%H:%M:%S')
-    print(f"[{timestamp}] {message}")
+    formatted_msg = f"[{timestamp}] {message}"
+    print(formatted_msg)
     if flush:
         sys.stdout.flush()
 
@@ -138,7 +139,7 @@ def extract_data_with_gemini(file_path: str, prompt: str, file_number: int, tota
     """
     Google Generative AI SDK를 사용하여 PDF에서 데이터를 추출합니다.
     """
-    log_progress(f"🔄 [{file_number}/{total_files}] '{os.path.basename(file_path)}' 파일 분석 시작...")
+    log_progress(f"🔄 [{file_number}/{total_files}] '{os.path.basename(file_path)}' OCR 분석 시작...")
     
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"❌ 오류: PDF 파일을 찾을 수 없습니다. 경로: {file_path}")
@@ -149,36 +150,36 @@ def extract_data_with_gemini(file_path: str, prompt: str, file_number: int, tota
     for attempt in range(max_retries):
         try:
             if max_retries > 1:
-                log_progress(f"🔄 [{file_number}/{total_files}] 시도 {attempt + 1}/{max_retries}")
+                log_progress(f"🔄 [{file_number}/{total_files}] OCR 시도 {attempt + 1}/{max_retries}")
             
             # 파일 업로드
-            log_progress(f"📤 [{file_number}/{total_files}] Gemini에 파일 업로드 중...")
+            log_progress(f"📤 [{file_number}/{total_files}] Gemini에 '{os.path.basename(file_path)}' 업로드 중...")
             uploaded_file = genai.upload_file(path=file_path, display_name=os.path.basename(file_path))
             
             # 모델 초기화 및 콘텐츠 생성 요청
             model = genai.GenerativeModel(model_name="gemini-2.5-flash")
             
-            log_progress(f"🧠 [{file_number}/{total_files}] Gemini AI로 데이터 추출 중...")
+            log_progress(f"🧠 [{file_number}/{total_files}] '{os.path.basename(file_path)}' AI 분석 중...")
             response = model.generate_content([uploaded_file, prompt])
             
-            log_progress(f"📄 [{file_number}/{total_files}] 응답 수신 완료 (길이: {len(response.text)} 문자)")
+            log_progress(f"📄 [{file_number}/{total_files}] '{os.path.basename(file_path)}' 응답 수신 완료 (길이: {len(response.text)} 문자)")
             
             # JSON 추출
             extracted_data = safe_extract_json(response.text)
             
             if extracted_data is None:
-                log_progress(f"⚠️ [{file_number}/{total_files}] 시도 {attempt + 1}: JSON 추출 실패")
+                log_progress(f"⚠️ [{file_number}/{total_files}] '{os.path.basename(file_path)}' JSON 추출 실패 (시도 {attempt + 1})")
                 if attempt < max_retries - 1:
-                    log_progress(f"🔄 [{file_number}/{total_files}] 재시도합니다...")
+                    log_progress(f"🔄 [{file_number}/{total_files}] '{os.path.basename(file_path)}' 재시도합니다...")
                     continue
                 else:
-                    raise ValueError(f"❌ 모든 시도에서 JSON 추출 실패")
+                    raise ValueError(f"❌ '{os.path.basename(file_path)}' 모든 시도에서 JSON 추출 실패")
             
-            log_progress(f"✅ [{file_number}/{total_files}] 데이터 추출 성공! {len(extracted_data)}개 항목 발견")
+            log_progress(f"✅ [{file_number}/{total_files}] '{os.path.basename(file_path)}' OCR 성공! {len(extracted_data)}개 항목 발견")
             return extracted_data
             
         except Exception as e:
-            log_progress(f"❌ [{file_number}/{total_files}] 시도 {attempt + 1} 실패: {e}")
+            log_progress(f"❌ [{file_number}/{total_files}] '{os.path.basename(file_path)}' OCR 실패 (시도 {attempt + 1}): {e}")
             if attempt == max_retries - 1:
                 raise
         finally:
@@ -190,18 +191,18 @@ def extract_data_with_gemini(file_path: str, prompt: str, file_number: int, tota
                 except Exception:
                     pass  # 삭제 오류는 무시
 
-def validate_and_fix_data(data_list, file_number, total_files):
+def validate_and_fix_data(data_list, file_number, total_files, filename):
     """
     추출된 데이터의 유효성을 검사하고 수정
     """
     if not isinstance(data_list, list):
-        log_progress(f"⚠️ [{file_number}/{total_files}] 데이터가 배열이 아닙니다. 배열로 변환합니다.")
+        log_progress(f"⚠️ [{file_number}/{total_files}] '{filename}' 데이터가 배열이 아닙니다. 배열로 변환합니다.")
         return [data_list] if isinstance(data_list, dict) else []
     
     validated_data = []
     for i, item in enumerate(data_list):
         if not isinstance(item, dict):
-            log_progress(f"⚠️ [{file_number}/{total_files}] 항목 {i+1}이 객체가 아닙니다. 건너뜁니다.")
+            log_progress(f"⚠️ [{file_number}/{total_files}] '{filename}' 항목 {i+1}이 객체가 아닙니다. 건너뜁니다.")
             continue
         
         # 모든 필드가 있는지 확인하고 없으면 추가
@@ -211,25 +212,25 @@ def validate_and_fix_data(data_list, file_number, total_files):
         
         validated_data.append(item)
     
-    log_progress(f"✅ [{file_number}/{total_files}] 데이터 검증 완료. {len(validated_data)}개 항목 유효")
+    log_progress(f"✅ [{file_number}/{total_files}] '{filename}' 데이터 검증 완료. {len(validated_data)}개 항목 유효")
     return validated_data
 
-def add_to_spreadsheet_batch(worksheet, rows_to_append, file_number, total_files):
+def add_to_spreadsheet_batch(worksheet, rows_to_append, file_number, total_files, filename):
     """스프레드시트에 배치로 데이터 추가"""
     try:
-        log_progress(f"📊 [{file_number}/{total_files}] 스프레드시트에 {len(rows_to_append)}개 행 추가 중...")
+        log_progress(f"📊 [{file_number}/{total_files}] '{filename}' 구글시트에 {len(rows_to_append)}개 행 업로드 중...")
         worksheet.append_rows(rows_to_append)
-        log_progress(f"✅ [{file_number}/{total_files}] 스프레드시트 추가 완료!")
+        log_progress(f"✅ [{file_number}/{total_files}] '{filename}' 구글시트 업로드 완료!")
         return True
     except Exception as e:
-        log_progress(f"❌ [{file_number}/{total_files}] 스프레드시트 추가 실패: {e}")
+        log_progress(f"❌ [{file_number}/{total_files}] '{filename}' 구글시트 업로드 실패: {e}")
         return False
 
 # --- 🚀 Main ---
 def main():
     start_time = time.time()
     log_progress("=" * 70)
-    log_progress("🚀 PDF 일괄 처리 및 스프레드시트 입력을 시작합니다")
+    log_progress("🚀 PDF 일괄 OCR 처리 및 구글시트 업로드를 시작합니다")
     log_progress("=" * 70)
     
     # 시스템 정보 출력
@@ -307,13 +308,14 @@ def main():
     successful_files = 0
 
     # 파일 처리 시작
-    log_progress(f"{'='*25} 📄 파일 처리 시작 {'='*25}")
+    log_progress(f"{'='*25} 📄 파일별 OCR 처리 시작 {'='*25}")
     
     # 각 PDF 파일 처리
     for i, pdf_file in enumerate(pdf_files, 1):
         file_start_time = time.time()
         
-        log_progress(f"📄 [{i}/{len(pdf_files)}] {pdf_file} 처리 시작")
+        log_progress(f"")
+        log_progress(f"📄 [{i}/{len(pdf_files)}] ===== {pdf_file} 처리 시작 =====")
         log_progress("-" * 50)
         
         try:
@@ -321,13 +323,13 @@ def main():
             
             # 파일 크기 정보 추가
             file_size = os.path.getsize(full_path) / 1024 / 1024  # MB
-            log_progress(f"📏 [{i}/{len(pdf_files)}] 파일 크기: {file_size:.2f} MB")
+            log_progress(f"📏 [{i}/{len(pdf_files)}] '{pdf_file}' 파일 크기: {file_size:.2f} MB")
             
             # 데이터 추출
             extracted_data_list = extract_data_with_gemini(full_path, GEMINI_PROMPT, i, len(pdf_files))
             
             # 데이터 검증 및 수정
-            validated_data = validate_and_fix_data(extracted_data_list, i, len(pdf_files))
+            validated_data = validate_and_fix_data(extracted_data_list, i, len(pdf_files), pdf_file)
             
             if not validated_data:
                 log_progress(f"⚠️ [{i}/{len(pdf_files)}] '{pdf_file}'에서 유효한 데이터를 찾지 못했습니다.")
@@ -335,7 +337,7 @@ def main():
                 continue
             
             # 스프레드시트에 추가할 행들 준비
-            log_progress(f"📊 [{i}/{len(pdf_files)}] 스프레드시트 데이터 준비 중...")
+            log_progress(f"📊 [{i}/{len(pdf_files)}] '{pdf_file}' 스프레드시트 데이터 준비 중...")
             rows_to_append = []
             for j, extracted_data in enumerate(validated_data):
                 # 모든 행에 파일 이름 표시 (확장자 제거)
@@ -355,7 +357,7 @@ def main():
             
             # 스프레드시트에 실시간 추가
             if rows_to_append:
-                success = add_to_spreadsheet_batch(worksheet, rows_to_append, i, len(pdf_files))
+                success = add_to_spreadsheet_batch(worksheet, rows_to_append, i, len(pdf_files), pdf_file)
                 if success:
                     total_rows_added += len(rows_to_append)
                     successful_files += 1
@@ -368,11 +370,12 @@ def main():
             file_end_time = time.time()
             processing_time = file_end_time - file_start_time
             
-            log_progress(f"✅ [{i}/{len(pdf_files)}] '{pdf_file}' 처리 완료!")
-            log_progress(f"   📊 추출된 데이터: {len(validated_data)}개 항목")
-            log_progress(f"   📝 스프레드시트 추가: {len(rows_to_append)}개 행")
+            log_progress(f"✅ [{i}/{len(pdf_files)}] '{pdf_file}' 완전 처리 완료!")
+            log_progress(f"   📊 OCR 추출: {len(validated_data)}개 항목")
+            log_progress(f"   📝 시트 업로드: {len(rows_to_append)}개 행")
             log_progress(f"   ⏱️ 처리 시간: {processing_time:.2f}초")
             log_progress(f"   📈 전체 진행률: {i}/{len(pdf_files)} ({(i/len(pdf_files)*100):.1f}%)")
+            log_progress(f"===== {pdf_file} 처리 완료 =====")
 
         except Exception as e:
             error_message = f"🚨 [{i}/{len(pdf_files)}] '{pdf_file}' 처리 중 오류 발생: {e}"
@@ -387,19 +390,20 @@ def main():
     end_time = time.time()
     total_processing_time = end_time - start_time
 
-    # 최종 결과 개선
-    log_progress(f"{'='*25} ✨ 처리 완료 {'='*25}")
+    # 최종 결과
+    log_progress(f"")
+    log_progress(f"{'='*25} ✨ 모든 처리 완료 {'='*25}")
     log_progress(f"⏱️ 총 처리 시간: {total_processing_time:.2f}초 ({total_processing_time/60:.1f}분)")
     log_progress(f"📊 총 처리된 파일: {len(pdf_files)}개")
     log_progress(f"✅ 성공: {successful_files}개")
     log_progress(f"❌ 오류: {error_count}개")
-    log_progress(f"📝 총 추가된 행: {total_rows_added}개")
+    log_progress(f"📝 총 업로드 행 수: {total_rows_added}개")
     log_progress(f"⚡ 평균 처리 속도: {total_processing_time/successful_files:.2f}초/파일" if successful_files > 0 else "")
     
     if error_count > 0:
         log_progress(f"⚠️ 오류 상세 내용은 '오류_로그' 시트를 확인하세요.")
     
-    log_progress("🎉 모든 작업이 완료되었습니다!")
+    log_progress("🎉 모든 OCR 및 구글시트 업로드 작업이 완료되었습니다!")
     log_progress("=" * 70)
 
 if __name__ == '__main__':

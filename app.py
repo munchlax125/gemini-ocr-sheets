@@ -16,9 +16,13 @@ from pdf_processor import PDFProcessor
 app = Flask(__name__, static_folder='.', static_url_path='')
 CORS(app)
 
-# 로깅 설정
+# 로깅 설정 (HTTP 요청 로그 레벨 조정)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Werkzeug 로깅 레벨을 WARNING으로 설정하여 HTTP 요청 로그 숨기기
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.WARNING)
 
 # 설정
 PDF_SOURCE_FOLDER = 'pdfs'
@@ -164,30 +168,36 @@ def run_ocr_with_realtime_output(job_id):
             if output:
                 line = output.strip()
                 if line:  # 빈 줄 제외
-                    timestamp = datetime.now().strftime('%H:%M:%S')
-                    formatted_line = f"[{timestamp}] {line}"
-                    output_lines.append(formatted_line)
+                    output_lines.append(line)
                     
-                    # 실시간 로그 큐에 추가
-                    add_log_to_queue(job_id, formatted_line)
+                    # 실시간 로그 큐에 추가 (타임스탬프 포함된 원본 그대로)
+                    add_log_to_queue(job_id, line)
                     
-                    # 진행률 계산 (특정 키워드 기반)
+                    # 진행률 계산 (파일별 처리 단계 기반)
                     progress = 20
-                    if '처리 중' in line:
-                        progress = min(80, 30 + len(output_lines))
-                    elif '완료' in line:
-                        progress = min(90, 50 + len(output_lines) // 2)
-                    elif '시작' in line or '초기화' in line:
-                        progress = 25
-                    elif '연결' in line:
+                    if '처리 시작' in line:
+                        progress = min(30, 20 + len(output_lines) // 10)
+                    elif 'OCR 분석 시작' in line:
+                        progress = min(50, 30 + len(output_lines) // 8)
+                    elif 'AI 분석 중' in line:
+                        progress = min(70, 50 + len(output_lines) // 6)
+                    elif '구글시트 업로드' in line:
+                        progress = min(85, 70 + len(output_lines) // 4)
+                    elif '완전 처리 완료' in line:
+                        progress = min(95, 85 + len(output_lines) // 3)
+                    elif '모든 처리 완료' in line:
+                        progress = 100
+                    elif '연결' in line or '초기화' in line:
                         progress = 15
                     
                     # 주요 메시지만 status에 표시
-                    status_message = line if any(keyword in line for keyword in 
-                        ['처리 중', '완료', '시작', '연결', '성공', '실패', '오류']) else '처리 진행 중...'
+                    status_message = "OCR 처리 진행 중..."
+                    if any(keyword in line for keyword in 
+                        ['처리 완료', '업로드 완료', '시작', '연결', '성공', '실패', '오류', '완료']):
+                        status_message = line.replace('[', '').replace(']', '').split('] ')[-1] if '] ' in line else line
                     
                     # 최근 로그만 status에 포함 (로그 스트림은 별도)
-                    recent_logs = '\n'.join(output_lines[-20:])
+                    recent_logs = '\n'.join(output_lines[-50:])  # 최근 50줄만
                     update_job_status(job_id, 'running', progress, status_message, log_output=recent_logs)
         
         # 프로세스 완료 대기 (무제한)
