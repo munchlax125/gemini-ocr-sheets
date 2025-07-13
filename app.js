@@ -5,6 +5,7 @@ let personalInfoData = [];
 let fileMappingData = [];
 let currentJobId = null;
 let ocrJobId = null;
+let lastLogUpdate = null; // 마지막 로그 업데이트 시간
 const API_BASE_URL = 'http://localhost:5000';
 
 // DOM 요소
@@ -133,7 +134,7 @@ class OCRLogController {
     }
     
     static appendNewLog(message) {
-        // 실시간 스트리밍용 - 타임스탬프가 이미 있음
+        // 실시간 스트리밍용 - 새로운 로그만 추가
         const logContent = document.getElementById('ocrLogContent');
         
         // 기존 내용에 새 줄 추가
@@ -156,6 +157,7 @@ class OCRLogController {
     static clearLog() {
         const logContent = document.getElementById('ocrLogContent');
         logContent.textContent = '';
+        lastLogUpdate = null; // 로그 업데이트 시간 초기화
     }
     
     static setLogContent(content) {
@@ -306,7 +308,8 @@ async function handleOCR() {
             UIController.showStepMessage(3, result.message, 'success');
             OCRLogController.appendLog(`작업 ID: ${result.job_id}`);
             
-            pollJobStatus(result.job_id, 3, () => {
+            // OCR 작업에 대해서는 실시간 로그 폴링과 상태 폴링을 분리
+            pollOCRJobWithLogs(result.job_id, () => {
                 UIController.completeStep(3);
                 UIController.showStepMessage(3, 'OCR 처리가 완료되었습니다!', 'success');
                 OCRLogController.appendLog('OCR 처리가 성공적으로 완료되었습니다.');
@@ -357,7 +360,75 @@ async function handleExcelGeneration() {
     }
 }
 
-// 작업 상태 폴링 (OCR 로그 포함)
+// OCR 작업 전용 폴링 함수 (실시간 로그 포함)
+async function pollOCRJobWithLogs(jobId, onComplete) {
+    let lastKnownLogLength = 0;
+    
+    const pollInterval = setInterval(async () => {
+        try {
+            const status = await APIClient.getJobStatus(jobId);
+            if (!status) return;
+            
+            // 진행률 업데이트
+            UIController.updateProgress('ocrProgress', status.progress);
+            
+            // 상태 메시지 업데이트 (중요한 메시지만)
+            if (status.message && (
+                status.message.includes('완료') || 
+                status.message.includes('시작') || 
+                status.message.includes('연결') ||
+                status.message.includes('처리 중') ||
+                status.message.includes('오류')
+            )) {
+                UIController.showStepMessage(3, status.message, 'info');
+            }
+            
+            // 로그 업데이트 (새로운 로그만)
+            if (status.log_output) {
+                const logLines = status.log_output.split('\n');
+                const newLogLines = logLines.slice(lastKnownLogLength);
+                
+                if (newLogLines.length > 0) {
+                    newLogLines.forEach(line => {
+                        if (line.trim()) {
+                            OCRLogController.appendNewLog(line);
+                        }
+                    });
+                    lastKnownLogLength = logLines.length;
+                }
+            }
+            
+            if (status.status === 'completed') {
+                clearInterval(pollInterval);
+                
+                if (status.result && status.result.output) {
+                    // 최종 출력이 있으면 추가
+                    const finalLines = status.result.output.split('\n');
+                    const remainingLines = finalLines.slice(lastKnownLogLength);
+                    remainingLines.forEach(line => {
+                        if (line.trim()) {
+                            OCRLogController.appendNewLog(line);
+                        }
+                    });
+                }
+                
+                UIController.updateProgress('ocrProgress', 100);
+                onComplete();
+                
+            } else if (status.status === 'failed') {
+                clearInterval(pollInterval);
+                UIController.showStepMessage(3, `작업 실패: ${status.error}`, 'error');
+                OCRLogController.appendLog(`작업 실패: ${status.error}`);
+                startOCRBtn.disabled = false;
+            }
+            
+        } catch (error) {
+            console.error('OCR 상태 폴링 오류:', error);
+        }
+    }, 2000); // 2초마다 상태 확인
+}
+
+// 일반 작업 상태 폴링 (마스킹용)
 async function pollJobStatus(jobId, stepNumber, onComplete) {
     const pollInterval = setInterval(async () => {
         try {
@@ -366,13 +437,6 @@ async function pollJobStatus(jobId, stepNumber, onComplete) {
             
             if (stepNumber === 2) {
                 UIController.updateProgress('maskingProgress', status.progress);
-            } else if (stepNumber === 3) {
-                UIController.updateProgress('ocrProgress', status.progress);
-                
-                // OCR 로그 업데이트
-                if (status.message) {
-                    OCRLogController.appendLog(status.message);
-                }
             }
             
             if (status.message) {
@@ -386,10 +450,6 @@ async function pollJobStatus(jobId, stepNumber, onComplete) {
                     if (stepNumber === 2) {
                         maskedFiles = status.result.processed_files || [];
                         fileMappingData = status.result.file_mapping || [];
-                    } else if (stepNumber === 3 && status.result.output) {
-                        // OCR 출력 로그 표시
-                        OCRLogController.appendLog('=== OCR 스크립트 출력 ===');
-                        OCRLogController.appendLog(status.result.output);
                     }
                 }
                 
@@ -400,14 +460,8 @@ async function pollJobStatus(jobId, stepNumber, onComplete) {
                 clearInterval(pollInterval);
                 UIController.showStepMessage(stepNumber, `작업 실패: ${status.error}`, 'error');
                 
-                if (stepNumber === 3) {
-                    OCRLogController.appendLog(`작업 실패: ${status.error}`);
-                }
-                
                 if (stepNumber === 2) {
                     startMaskingBtn.disabled = false;
-                } else if (stepNumber === 3) {
-                    startOCRBtn.disabled = false;
                 }
             }
             
