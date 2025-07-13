@@ -278,7 +278,7 @@ h1 {
 }
 
 .btn {
-    background: linear-gradient(135deg, #4facfe, #00f2fe);
+    background: linear-gradient(135deg, #2196f3, #21cbf3);
     color: white;
     border: none;
     padding: 12px 24px;
@@ -304,11 +304,15 @@ h1 {
 }
 
 .btn-secondary {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg, #2196f3, #21cbf3);
 }
 
 .btn-success {
     background: linear-gradient(135deg, #4caf50, #66bb6a);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #2196f3, #21cbf3);
 }
 
 .progress-bar {

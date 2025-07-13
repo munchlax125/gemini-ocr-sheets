@@ -43,7 +43,7 @@
                 </div>
                 <div class="step-description">
                     pdfs 폴더에 있는 PDF 파일들을 스캔합니다.
-                    <br><small style="color: #888;">• 파일명: "이름_생년월일.pdf" 형태 권장</small>
+                    <br><small style="color: #888;">• 파일명: "성명_생년월일.pdf" 형태 권장</small>
                 </div>
                 <div id="folderInfo" class="folder-info">
                     📁 폴더를 스캔하려면 아래 버튼을 클릭하세요.
@@ -64,7 +64,7 @@
                 </div>
                 <div class="step-description">
                     PDF 첫 페이지에서 개인정보를 자동으로 마스킹 처리합니다.
-                    <br><small style="color: #888;">• 이름, 생년월일, 사업자번호 영역을 기본 설정으로 마스킹</small>
+                    <br><small style="color: #888;">• 성명, 생년월일, 사업자번호 영역을 기본 설정으로 마스킹</small>
                     <br><small style="color: #888;">• 첫 페이지만 추출하여 용량 최적화</small>
                     <br><small style="color: #888;">• pdfs → masked-pdfs 폴더로 저장</small>
                 </div>
@@ -177,12 +177,12 @@
         .current-file-indicator {
             display: flex;
             align-items: center;
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, #2196f3, #21cbf3);
             color: white;
             padding: 15px 20px;
             border-radius: 12px;
             margin: 15px 0;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
             animation: pulse-glow 2s infinite;
         }
 
@@ -224,11 +224,11 @@
 
         @keyframes pulse-glow {
             0%, 100% { 
-                box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+                box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3);
                 transform: scale(1);
             }
             50% { 
-                box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+                box-shadow: 0 6px 20px rgba(33, 150, 243, 0.5);
                 transform: scale(1.01);
             }
         }

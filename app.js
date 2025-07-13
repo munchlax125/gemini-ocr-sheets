@@ -1,4 +1,4 @@
-// app.js - 메인 애플리케이션 로직
+// app.js - 메인 애플리케이션 로직 (SSE 적용)
 // 전역 변수
 let scannedFiles = [];
 let maskedFiles = [];
@@ -123,7 +123,7 @@ async function handleMasking() {
             currentJobId = result.job_id;
             UIController.showStepMessage(2, result.message, 'success');
             
-            pollJobStatus(result.job_id, 2, () => {
+            pollJobStatusWithSSE(result.job_id, 2, () => {
                 UIController.completeStep(2);
                 startOCRBtn.disabled = false;
                 generateExcelBtn.disabled = false;
@@ -152,8 +152,8 @@ async function handleOCR() {
         if (result.success) {
             ocrJobId = result.job_id;
             
-            // OCR 작업에 대해서는 실시간 상태 폴링 (로그 없이)
-            pollOCRJobWithLogs(result.job_id, () => {
+            // OCR 작업에 대해서는 실시간 SSE 스트리밍
+            streamOCRJobWithLogs(result.job_id, () => {
                 UIController.completeStep(3);
                 UIController.hideCurrentFile(); // 현재 파일 표시 숨김
                 // 완료 메시지도 최소화
@@ -197,7 +197,7 @@ async function handleExcelGeneration() {
                 
                 UIController.showStepMessage(4, `${personalInfoData.length}개 항목의 개인정보 엑셀이 생성되었습니다!`, 'success');
             } else {
-                UIController.showStepMessage(4, '올바른 형식의 파일이 없습니다. 파일명이 "이름_생년월일.pdf" 형태인지 확인해주세요.', 'error');
+                UIController.showStepMessage(4, '올바른 형식의 파일이 없습니다. 파일명이 "성명_생년월일.pdf" 형태인지 확인해주세요.', 'error');
             }
         } else {
             throw new Error(result.error || '정보 추출 실패');
@@ -210,30 +210,128 @@ async function handleExcelGeneration() {
     }
 }
 
-// OCR 작업 전용 폴링 함수 (단순화 + 로그 문제 해결)
-async function pollOCRJobWithLogs(jobId, onComplete) {
-    let lastKnownLogLength = 0;
-    let pollInterval = 2000; // 기본 2초로 늘림
+// OCR 작업 전용 SSE 함수 (실시간 로그 스트리밍)
+function streamOCRJobWithLogs(jobId, onComplete) {
+    console.log(`🔄 SSE 연결 시작: ${jobId}`);
+    
+    const eventSource = new EventSource(`${API_BASE_URL}/stream-logs/${jobId}`);
+    
+    eventSource.onopen = function() {
+        console.log('✅ SSE 연결 성공');
+        UIController.showStepMessage(3, 'OCR 처리 실시간 모니터링 시작...', 'info');
+    };
+    
+    eventSource.onmessage = function(event) {
+        try {
+            const data = JSON.parse(event.data);
+            
+            if (data.type === 'log') {
+                // 실시간 로그에서 파일명 추출
+                const currentFile = extractFileName(data.message);
+                if (currentFile) {
+                    UIController.showCurrentFile(currentFile, '처리 중...');
+                }
+                
+                // 진행률 계산 (로그 기반)
+                const progress = calculateProgressFromLog(data.message);
+                if (progress > 0) {
+                    UIController.updateProgress('ocrProgress', progress);
+                }
+                
+                console.log(`📡 [OCR] ${data.message}`);
+                
+            } else if (data.type === 'status') {
+                if (data.status === 'completed') {
+                    console.log('✅ OCR 처리 완료!');
+                    UIController.updateProgress('ocrProgress', 100);
+                    UIController.hideCurrentFile();
+                    eventSource.close();
+                    onComplete();
+                    
+                } else if (data.status === 'failed') {
+                    console.log('❌ OCR 처리 실패');
+                    UIController.showStepMessage(3, '작업이 실패했습니다.', 'error');
+                    UIController.hideCurrentFile();
+                    eventSource.close();
+                    startOCRBtn.disabled = false;
+                }
+                
+            } else if (data.type === 'error') {
+                console.error('❌ SSE 오류:', data.message);
+                UIController.showStepMessage(3, `스트리밍 오류: ${data.message}`, 'error');
+                
+            } else if (data.type === 'close') {
+                console.log('🔚 SSE 연결 종료');
+                eventSource.close();
+            }
+            
+        } catch (error) {
+            console.error('❌ SSE 메시지 파싱 오류:', error);
+        }
+    };
+    
+    eventSource.onerror = function(event) {
+        console.error('❌ SSE 연결 오류:', event);
+        
+        // 연결 오류 시 폴백 처리
+        eventSource.close();
+        UIController.showStepMessage(3, 'SSE 연결 실패. 폴링 방식으로 전환합니다.', 'warning');
+        
+        // 폴백: 폴링 방식으로 전환
+        fallbackToPolling(jobId, onComplete);
+    };
+}
+
+// 로그 기반 진행률 계산 함수
+function calculateProgressFromLog(logMessage) {
+    // 기본 진행률
+    let progress = 20;
+    
+    if (logMessage.includes('처리 시작') || logMessage.includes('시작')) {
+        progress = Math.min(30, progress + 10);
+    } else if (logMessage.includes('OCR 분석') || logMessage.includes('분석')) {
+        progress = Math.min(50, progress + 20);
+    } else if (logMessage.includes('AI 분석') || logMessage.includes('AI')) {
+        progress = Math.min(70, progress + 20);
+    } else if (logMessage.includes('구글시트') || logMessage.includes('업로드')) {
+        progress = Math.min(85, progress + 15);
+    } else if (logMessage.includes('완료')) {
+        progress = Math.min(95, progress + 10);
+    } else if (logMessage.includes('모든 처리 완료')) {
+        progress = 100;
+    }
+    
+    return progress;
+}
+
+// SSE 실패 시 폴링 폴백 함수
+async function fallbackToPolling(jobId, onComplete) {
+    const pollInterval = 3000; // 3초 간격으로 폴링
+    let attempts = 0;
+    const maxAttempts = 100; // 5분 최대 대기
     
     const poll = async () => {
         try {
+            attempts++;
+            
+            if (attempts > maxAttempts) {
+                UIController.showStepMessage(3, '시간 초과로 모니터링을 중단합니다.', 'error');
+                startOCRBtn.disabled = false;
+                return;
+            }
+            
             const status = await APIClient.getJobStatus(jobId);
             if (!status) {
-                console.log('❌ 상태 정보 없음');
                 setTimeout(poll, pollInterval);
                 return;
             }
             
-            console.log(`📊 진행률: ${status.progress}%, 상태: ${status.status}`);
-            
             // 진행률 업데이트
             UIController.updateProgress('ocrProgress', status.progress);
             
-            // 로그에서 현재 파일명만 간단하게 추출
+            // 로그에서 파일명 추출
             if (status.log_output) {
                 const logLines = status.log_output.split('\n');
-                
-                // 전체 로그에서 가장 최근 파일명 찾기
                 for (let i = logLines.length - 1; i >= 0; i--) {
                     const line = logLines[i];
                     if (line.trim()) {
@@ -244,8 +342,6 @@ async function pollOCRJobWithLogs(jobId, onComplete) {
                         }
                     }
                 }
-                
-                lastKnownLogLength = logLines.length;
             }
             
             if (status.status === 'completed') {
@@ -261,16 +357,14 @@ async function pollOCRJobWithLogs(jobId, onComplete) {
                 return;
             }
             
-            // 다음 폴링 예약
             setTimeout(poll, pollInterval);
             
         } catch (error) {
-            console.error('❌ OCR 상태 폴링 오류:', error);
+            console.error('❌ 폴백 폴링 오류:', error);
             setTimeout(poll, pollInterval);
         }
     };
     
-    // 첫 번째 폴링 시작
     poll();
 }
 
@@ -296,8 +390,9 @@ function extractFileName(logLine) {
     return null;
 }
 
-// 일반 작업 상태 폴링 (마스킹용)
-async function pollJobStatus(jobId, stepNumber, onComplete) {
+// 일반 작업 상태 폴링 (마스킹용) - SSE로 개선
+async function pollJobStatusWithSSE(jobId, stepNumber, onComplete) {
+    // 마스킹 작업은 아직 SSE 엔드포인트가 없으므로 기존 폴링 유지
     const pollInterval = setInterval(async () => {
         try {
             const status = await APIClient.getJobStatus(jobId);
